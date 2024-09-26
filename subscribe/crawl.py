@@ -329,7 +329,7 @@ def batch_crawl(conf: dict, num_threads: int = 50, display: bool = True) -> list
 
         if len(unknowns) > 0:
             unknowns = [utils.mask(url=x) for x in unknowns]
-            logger.warn(
+            logger.warning(
                 f"[CrawlWarn] some links were found, but could not be confirmed to work, subscriptions: {unknowns}"
             )
 
@@ -882,7 +882,12 @@ def crawl_pages(
         config = v.get("config", {})
         nocache = v.get("nocache", False)
 
-        params.append([k, push_to, include, exclude, config, headers, origin, nocache])
+        final_headers = deepcopy(headers) if headers and isinstance(headers, dict) else utils.DEFAULT_HTTP_HEADERS
+        specific_headers = v.get("headers", {})
+        if specific_headers and isinstance(specific_headers, dict):
+            final_headers.update(specific_headers)
+
+        params.append([k, push_to, include, exclude, config, final_headers, origin, nocache])
 
     subscribes = multi_thread_crawl(func=crawl_single_page, params=params)
     if not silent:
@@ -1207,7 +1212,8 @@ def validate(
     if not params.pop("saved", False):
         if reachable or (discovered and defeat <= threshold and not expired):
             # don't storage temporary link shared by someone
-            if not workflow.standard_sub(url=url) and mode != 1:
+            pardon = params.pop("pardon", False)
+            if not pardon and not workflow.standard_sub(url=url) and mode != 1:
                 return result
 
             remark(source=params, defeat=defeat, discovered=True)
@@ -1445,7 +1451,7 @@ def collect_airport(
                     if not address:
                         continue
 
-                    coupon_regex = r"(?:白嫖|优惠)码[:\s：]+([^\s\r\n）]+)"
+                    coupon_regex = r"(?:白嫖|优惠)码[:\s：]+(?:<span.*?>)?([^\s\r\n<）]+)"
                     words = re.findall(coupon_regex, text, flags=re.M)
                     coupon = words[0] if words else ""
 
@@ -1479,7 +1485,7 @@ def collect_airport(
             url="https://www.askahh.com/archives/101",
             separator=r"&lt;h2&gt;[^\r\n]+&lt;/h2&gt;",
             address_regex=r"&lt;a class=&quot;no-external-link&quot; href=&quot;(https?://[^\s]+)&quot; target=&quot;_blank&quot;&gt;",
-            coupon_regex=r"可使用优惠码(?:&lt;strong&gt;)?([A-Za-z0-9\u4e00-\u9fa5_\-%*:.@&#]+)(?:&lt;/strong&gt;(?:[\r\n\s]+)?)?免费购买",
+            coupon_regex=r"使用优惠码(?:&lt;strong&gt;)?([A-Za-z0-9\u4e00-\u9fa5_\-%*:.@&#]+)(?:&lt;/strong&gt;(?:[\r\n\s]+)?)?免费购买",
         )
 
     def crawl_ygpy() -> dict:
